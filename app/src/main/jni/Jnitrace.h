@@ -45,7 +45,7 @@
 #include <logging.h>
 #include <parse.h>
 #include <SubstrateHook.h>
-
+#include <Log.h>
 
 
 #define HOOK_JNI(env, func) \
@@ -54,6 +54,7 @@
       (void*)new_##func,\
       (void**)&orig_##func );     \
 
+//#define GET_TOSTRING_METHOD(type) env->GetStaticMethodID(ArrayClazz,"toString", "("##type##")Ljava/lang/String;");
 
 #define HOOK_DEF(ret, func, ...) \
   ret (*orig_##func)(__VA_ARGS__); \
@@ -66,7 +67,6 @@
 
 #define GET_JOBJECT_INFO(env, obj) Jnitrace::getJObjectInfo(env,obj);
 
-#define GET_JOBJECT_INFO_MSG(env, obj,meg) appUtils::getJObjectInfo(env,obj,msg);
 
 #define GET_METHOD_INFO_ARGS(env, obj, methodid, args) Jnitrace::getArgsInfo(env,obj,methodid,args);
 
@@ -79,9 +79,9 @@ public:
 
     static void getJObjectInfo(JNIEnv *env, jobject obj);
 
-    static void getJObjectInfo(JNIEnv *env, jobject obj, char * message, bool isPrintClassinfo);
+    static void getJObjectInfoInternal(JNIEnv *env, jobject obj, char * message, bool isPrintClassinfo,char * classinfo);
 
-    static char* getJObjectClassInfo(JNIEnv *env, jclass obj);
+    static char* getJObjectClassInfo(JNIEnv *env, jobject obj);
 
     static void startjnitrace(JNIEnv * env, char * soname);
 

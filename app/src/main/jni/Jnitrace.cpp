@@ -16,7 +16,7 @@ JNI_HOOK_DEF(jobject, CallObjectMethodV, JNIEnv *env, jobject obj, jmethodID jme
         GET_JOBJECT_INFO(env, obj)
         GET_METHOD_INFO_ARGS(env, obj, jmethodId, args)
         jobject ret = orig_CallObjectMethodV(env, obj, jmethodId, args);
-        Jnitrace::getJObjectInfo(env, ret, "result object :", true);
+        Jnitrace::getJObjectInfoInternal(env, ret, "result object :", true, nullptr);
         return ret;
     }
     return orig_CallObjectMethodV(env, obj, jmethodId, args);
@@ -162,7 +162,7 @@ JNI_HOOK_DEF(jobject, CallStaticObjectMethodV, JNIEnv *env, jclass obj, jmethodI
         GET_JOBJECT_INFO(env, obj)
         GET_METHOD_INFO_ARGS(env, obj, jmethodId, args)
         jobject ret = orig_CallStaticObjectMethodV(env, obj, jmethodId, args);
-        Jnitrace::getJObjectInfo(env, ret, "result object :", true);
+        Jnitrace::getJObjectInfoInternal(env, ret, "result object :", true, nullptr);
         return ret;
     }
     return orig_CallStaticObjectMethodV(env, obj, jmethodId, args);
@@ -274,7 +274,8 @@ JNI_HOOK_DEF(jlong, CallStaticLongMethodV, JNIEnv *env, jclass obj, jmethodID jm
 }
 
 
-JNI_HOOK_DEF(jfloat, CallStaticFloatMethodV, JNIEnv *env, jclass obj, jmethodID jmethodId, va_list args)
+JNI_HOOK_DEF(jfloat, CallStaticFloatMethodV, JNIEnv *env, jclass obj, jmethodID jmethodId,
+             va_list args)
     Dl_info info;
     dladdr((void *) __builtin_return_address(0), &info);
     if (strstr(info.dli_fname, filterSoName.c_str())) {
@@ -304,46 +305,45 @@ JNI_HOOK_DEF(jdouble, CallStaticDoubleMethodV, JNIEnv *env, jclass obj, jmethodI
 }
 
 
-
 void Jnitrace::getJObjectInfo(JNIEnv *env, jobject obj) {
     if (obj == nullptr) {
         return;
     }
     LOGE("<<<<<------------------start--------------------->>>>>")
 
-    Jnitrace::getJObjectInfo(env, obj, "invoke this object", true);
+    Jnitrace::getJObjectInfoInternal(env, obj, "invoke this object", true, nullptr);
 
 
 }
 
 
-void
-Jnitrace::getJObjectInfo(JNIEnv *env, jobject obj, char *message, bool isPrintClassinfo) {
+void Jnitrace::getJObjectInfoInternal(JNIEnv *env,
+                                      jobject obj,
+                                      char *message,
+                                      bool isPrintClassinfo,
+                                      char *classinfo) {
+
     if (obj == nullptr) {
         return;
     }
-
     jclass objClass = env->GetObjectClass(obj);
-
-    char* objClassInfo = nullptr ;
-
-    if (isPrintClassinfo) {
-        //print class info
-        objClassInfo = getJObjectClassInfo(env, objClass);
+    if (classinfo == nullptr) {
+        classinfo = getJObjectClassInfo(env, objClass);
     }
 
     jmethodID method_id_toString = env->GetMethodID(
-            env->FindClass("java/lang/Object"), "toString",
-                                                    "()Ljava/lang/String;");
+            env->FindClass("java/lang/Object"),
+            "toString",
+            "()Ljava/lang/String;");
 
     //打印当前obj的toString
     auto toString_ret = static_cast<jstring>(env->CallObjectMethod(obj, method_id_toString));
 
     const char *toString = env->GetStringUTFChars(toString_ret, NULL);
 
-    if(objClassInfo!= nullptr ){
-        LOGI("%s ->  %s  %s ", message, objClassInfo ,toString)
-    } else{
+    if (isPrintClassinfo) {
+        LOGI("%s ->  %s  %s ", message, classinfo, toString)
+    } else {
         LOGI("%s -> %s ", message, toString)
     }
 
@@ -353,37 +353,6 @@ Jnitrace::getJObjectInfo(JNIEnv *env, jobject obj, char *message, bool isPrintCl
 
     //todo print Gson
 
-}
-
-
-char*  Jnitrace::getJObjectClassInfo(JNIEnv *env, jclass obj) {
-    if (obj == nullptr) {
-        return nullptr;
-    }
-
-    jclass clazz = env->FindClass("java/lang/Class");
-    
-    jmethodID method_id_getName = env->GetMethodID(clazz, "getName","()Ljava/lang/String;");
-
-    //print class info
-    auto getClassName_ret = 
-            static_cast<jstring>(env->CallObjectMethod(obj, method_id_getName));
-
-    const char *getClass = env->GetStringUTFChars(getClassName_ret, NULL);
-    
-    
-    if (strstr(getClass, "[")) {
-        env->ReleaseStringUTFChars(getClassName_ret, getClass);
-        env->DeleteLocalRef(getClassName_ret);
-        //数组打印toString没意义，直接返回
-        return nullptr;
-    }
-
-    //free
-    env->ReleaseStringUTFChars(getClassName_ret, getClass);
-    env->DeleteLocalRef(getClassName_ret);
-
-    return const_cast<char *>(getClass);
 }
 
 void Jnitrace::getArgsInfo(JNIEnv *env, jobject obj, jmethodID jmethodId, va_list args) {
@@ -402,7 +371,7 @@ void Jnitrace::getArgsInfo(JNIEnv *env, jobject obj, jmethodID jmethodId, va_lis
     }
 
     //打印被调用方法信息
-    Jnitrace::getJObjectInfo(env, invokeMethod, "invoke method", false);
+    Jnitrace::getJObjectInfoInternal(env, invokeMethod, "invoke method", false, nullptr);
 
     // 获取方法长度
     jmethodID method_id_getTypeCount = env->GetMethodID(
@@ -419,58 +388,108 @@ void Jnitrace::getArgsInfo(JNIEnv *env, jobject obj, jmethodID jmethodId, va_lis
             env->FindClass("java/lang/reflect/Method"), "getParameterTypes",
             "()[Ljava/lang/Class;");
 
-    auto classArray = static_cast<jobjectArray>(env->CallObjectMethod(invokeMethod,
-                                                                      method_id_getTypes));
+    auto objectArray = static_cast<jobjectArray>(env->CallObjectMethod(invokeMethod,
+                                                                       method_id_getTypes));
 
 
-    //输出参数信息
+
+    //分别判断每个参数的类型
     for (int i = 0; i < size; i++) {
-        auto obj = env->GetObjectArrayElement(classArray, i);
+        auto obj = env->GetObjectArrayElement(objectArray, i);
         if (obj == nullptr) {
             continue;
         }
-        char *classInfo = getJObjectClassInfo(env, env->GetObjectClass(obj));
+        char argsInfo[20];
+        sprintf(argsInfo, "args %d ", i);
+
+        //具体每个类型的class
+        char *classInfo = getJObjectClassInfo(env, obj);
+        //LOGI("->   %s   ", classInfo)
 
         if (strcmp(classInfo, "boolean") == 0 || strcmp(classInfo, "java.lang.Boolean") == 0) {
             jboolean arg = va_arg(args, jboolean);
-            //LOGI("Boolean %hhu ", arg)
-            LOGI("Boolean %hhu ", arg)
+            LOGI("%s -> Boolean %hhu ", argsInfo, arg)
             continue;
         } else if (strcmp(classInfo, "byte") == 0 || strcmp(classInfo, "java.lang.Byte") == 0) {
             jbyte arg = va_arg(args, jbyte);
-            LOGI("Byte %hhd ", arg)
+            LOGI("%s ->Byte %hhd ", argsInfo, arg)
             continue;
-        } else if (strcmp(classInfo, "char") == 0 || strcmp(classInfo, "java.lang.Character") == 0) {
+        } else if (strcmp(classInfo, "char") == 0 ||
+                   strcmp(classInfo, "java.lang.Character") == 0) {
             jchar arg = va_arg(args, jchar);
-            LOGI("Character %hu ", arg)
+            LOGI("%s ->Character %hu ", argsInfo, arg)
             continue;
         } else if (strcmp(classInfo, "short") == 0 || strcmp(classInfo, "java.lang.Short") == 0) {
             jshort arg = va_arg(args, jshort);
-            LOGI("Short %d ", arg)
+            LOGI("%s ->Short %d ", argsInfo, arg)
             continue;
         } else if (strcmp(classInfo, "int") == 0 || strcmp(classInfo, "java.lang.Integer") == 0) {
             jint arg = va_arg(args, jint);
-            LOGI("Integer %d ", arg)
+            LOGI("%s ->Integer %d ", argsInfo, arg)
             continue;
         } else if (strcmp(classInfo, "float") == 0 || strcmp(classInfo, "java.lang.Float") == 0) {
             jfloat arg = va_arg(args, jfloat);
-            LOGI("Float %f ", arg)
+            LOGI("%s ->Float %f ", argsInfo, arg)
             continue;
         } else if (strcmp(classInfo, "double") == 0 || strcmp(classInfo, "java.lang.Double") == 0) {
             jdouble arg = va_arg(args, jdouble);
-            LOGI("Double %f ", arg)
+            LOGI("%s ->Double %f ", argsInfo, arg)
             continue;
         } else if (strcmp(classInfo, "long") == 0 || strcmp(classInfo, "java.lang.Long") == 0) {
             jlong arg = va_arg(args, jlong);
-            LOGI("Long %ld ", arg)
+            LOGI("%s ->Long %ld ", argsInfo, arg)
+            continue;
+        } else if (strstr(classInfo, "[")) {
+            jobjectArray arg = va_arg(args, jobjectArray);
+            //数组类型参数
+            jclass ArrayClazz = env->FindClass("java/util/Arrays");
+            jmethodID methodid = nullptr;
+            jstring argJstr = nullptr;
+            const char *ret = nullptr;
+            if (strcmp(classInfo, "[Z") == 0) {
+                methodid = env->GetStaticMethodID(ArrayClazz, "toString", "([Z)Ljava/lang/String;");
+            } else if (strcmp(classInfo, "[C") == 0) {
+                methodid = env->GetStaticMethodID(ArrayClazz, "toString", "([C)Ljava/lang/String;");
+            } else if (strcmp(classInfo, "[D") == 0) {
+                methodid = env->GetStaticMethodID(ArrayClazz, "toString", "([D)Ljava/lang/String;");
+            } else if (strcmp(classInfo, "[F") == 0) {
+                methodid = env->GetStaticMethodID(ArrayClazz, "toString", "([F)Ljava/lang/String;");
+            } else if (strcmp(classInfo, "[I") == 0) {
+                methodid = env->GetStaticMethodID(ArrayClazz, "toString", "([I)Ljava/lang/String;");
+            } else if (strcmp(classInfo, "[J") == 0) {
+                methodid = env->GetStaticMethodID(ArrayClazz, "toString", "([J)Ljava/lang/String;");
+            } else if (strcmp(classInfo, "[S") == 0) {
+                methodid = env->GetStaticMethodID(ArrayClazz, "toString", "([S)Ljava/lang/String;");
+            } else if (strcmp(classInfo, "[Ljava/lang/Object;") == 0) {
+                methodid = env->GetStaticMethodID(ArrayClazz, "toString","([Ljava/lang/Object;)Ljava/lang/String;");
+            } else if (strcmp(classInfo, "[B") == 0) {
+                //字节数组,特殊处理,打印字符串数组的U8编码
+                jclass strclazz = env->FindClass("java/lang/String");
+                jmethodID strInit = env->GetMethodID(strclazz, "<init>", "([BLjava/lang/String;)V");
+                if(strInit == nullptr){
+                    LOGI("get string <init> error  ");
+                    continue;
+                }
+                jstring utf = env->NewStringUTF("UTF-8");
+                argJstr = static_cast<jstring>(env->NewObject(strclazz, strInit, arg,utf));
+                //如果这个native方法不会切换到Java环境可能导致不会被释放
+                env->DeleteLocalRef(utf);
+            }
+            if (argJstr == nullptr) {
+                argJstr = static_cast<jstring>(env->CallStaticObjectMethod(ArrayClazz, methodid,arg));
+            }
+            ret = env->GetStringUTFChars(argJstr, nullptr);
+            if (argJstr != nullptr) {
+                LOGI("%s ->  %s  -> %s ", argsInfo, classInfo, ret);
+                env->ReleaseStringUTFChars(argJstr, ret);
+            }
             continue;
         } else {
             //object类型
             jobject arg = va_arg(args, jobject);
-            char info[20];
-            sprintf(info, "args %d ", i);
-            Jnitrace::getJObjectInfo(env, arg, info, true);
+            Jnitrace::getJObjectInfoInternal(env, arg, argsInfo, true, classInfo);
         }
+
     }
 
     //end
@@ -479,7 +498,27 @@ void Jnitrace::getArgsInfo(JNIEnv *env, jobject obj, jmethodID jmethodId, va_lis
 }
 
 
+char *Jnitrace::getJObjectClassInfo(JNIEnv *env, jobject obj) {
+    if (obj == nullptr) {
+        return "";
+    }
 
+    jclass clazz = env->FindClass("java/lang/Class");
+
+    jmethodID method_id_getName = env->GetMethodID(clazz, "getName", "()Ljava/lang/String;");
+
+    //print class info
+    auto getClassName_ret = static_cast<jstring>(env->CallObjectMethod(obj, method_id_getName));
+
+
+    const char *getClass = env->GetStringUTFChars(getClassName_ret, NULL);
+
+    //free
+    env->ReleaseStringUTFChars(getClassName_ret, getClass);
+    env->DeleteLocalRef(getClassName_ret);
+
+    return const_cast<char *>(getClass);
+}
 
 //jstring NewStringUTF(const char* bytes)
 HOOK_DEF(jstring, NewStringUTF, JNIEnv *env, const char *bytes) {
