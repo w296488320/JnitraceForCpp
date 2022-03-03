@@ -45,7 +45,6 @@
 #include <logging.h>
 #include <parse.h>
 #include <SubstrateHook.h>
-#include <Log.h>
 
 
 #define HOOK_JNI(env, func) \
@@ -68,14 +67,14 @@
 #define GET_JOBJECT_INFO(env, obj) Jnitrace::getJObjectInfo(env,obj);
 
 
-#define GET_METHOD_INFO_ARGS(env, obj, methodid, args) Jnitrace::getArgsInfo(env,obj,methodid,args);
+#define GET_METHOD_INFO_ARGS(env, obj, methodid, args,isStatic) Jnitrace::getArgsInfo(env,obj,methodid,args,isStatic);
 
 typedef size_t Addr;
 
 class Jnitrace {
 
 public:
-    static void getArgsInfo(JNIEnv *env, jobject obj, jmethodID jmethodId, va_list  args);
+    static void getArgsInfo(JNIEnv *env, jobject obj, jmethodID jmethodId, va_list  args,bool isStatic);
 
     static void getJObjectInfo(JNIEnv *env, jobject obj);
 
