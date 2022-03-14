@@ -159,6 +159,10 @@ JNI_HOOK_DEF(jobject, CallStaticObjectMethodV, JNIEnv *env, jclass obj, jmethodI
     Dl_info info;
     dladdr((void *) __builtin_return_address(0), &info);
     if (strstr(info.dli_fname, filterSoName.c_str())) {
+        if(jmethodId == nullptr) {
+          LOG(INFO) << "CallStaticObjectMethodV method id  == null  " ;
+          return  orig_CallStaticObjectMethodV(env, obj, jmethodId, args);
+        }
         GET_JOBJECT_INFO(env, obj)
         GET_METHOD_INFO_ARGS(env, obj, jmethodId, args, true)
         jobject ret = orig_CallStaticObjectMethodV(env, obj, jmethodId, args);
@@ -449,47 +453,25 @@ void Jnitrace::getArgsInfo(JNIEnv *env, jobject obj, jmethodID jmethodId,
             jobjectArray arg = va_arg(args, jobjectArray);
             //数组类型参数
             jclass ArrayClazz = env->FindClass("java/util/Arrays");
-            jmethodID methodid = nullptr;
-            jstring argJstr = nullptr;
-            const char *ret = nullptr;
-            bool isHandler = false;
+            jstring argJstr  ;
 
-            if (strcmp(classInfo, "[Z") == 0) {
-                methodid = env->GetStaticMethodID(ArrayClazz, "toString", "([Z)Ljava/lang/String;");
-            } else if (strcmp(classInfo, "[C") == 0) {
-                methodid = env->GetStaticMethodID(ArrayClazz, "toString", "([C)Ljava/lang/String;");
-            } else if (strcmp(classInfo, "[D") == 0) {
-                methodid = env->GetStaticMethodID(ArrayClazz, "toString", "([D)Ljava/lang/String;");
-            } else if (strcmp(classInfo, "[F") == 0) {
-                methodid = env->GetStaticMethodID(ArrayClazz, "toString", "([F)Ljava/lang/String;");
-            } else if (strcmp(classInfo, "[I") == 0) {
-                methodid = env->GetStaticMethodID(ArrayClazz, "toString", "([I)Ljava/lang/String;");
-            } else if (strcmp(classInfo, "[J") == 0) {
-                methodid = env->GetStaticMethodID(ArrayClazz, "toString", "([J)Ljava/lang/String;");
-            } else if (strcmp(classInfo, "[S") == 0) {
-                methodid = env->GetStaticMethodID(ArrayClazz, "toString", "([S)Ljava/lang/String;");
-            } else if (strcmp(classInfo, "[Ljava/lang/Object;") == 0) {
-                methodid = env->GetStaticMethodID(ArrayClazz, "toString","([Ljava/lang/Object;)Ljava/lang/String;");
-            } else if (strcmp(classInfo, "[B") == 0) {
-                //字节数组,特殊处理,打印字符串数组的U8编码
-                isHandler = true;
-            }
-
-            if(isHandler){
+            //byte数组 特殊处理
+            if (strcmp(classInfo, "[B") == 0) {
                 jclass strclazz = env->FindClass("java/lang/String");
                 jstring utf = env->NewStringUTF("UTF-8");
-
                 jmethodID strInit = env->GetMethodID(strclazz, "<init>", "([BLjava/lang/String;)V");
                 argJstr = static_cast<jstring>(env->NewObject(strclazz, strInit, arg, utf));
                 env->DeleteLocalRef(utf);
                 env->DeleteLocalRef(strclazz);
 
             } else{
-                //当没有走[b 则调用Arrays.toString
+                jmethodID methodid = env->GetStaticMethodID(ArrayClazz, "toString", "([Z)Ljava/lang/String;");
                 argJstr = static_cast<jstring>(env->CallStaticObjectMethod(ArrayClazz, methodid,arg));
             }
+
+
             //上面的逻辑主要是为了处理argJstr的赋值
-            ret = env->GetStringUTFChars(argJstr, nullptr);
+            const char *ret = env->GetStringUTFChars(argJstr, nullptr);
             if (ret != nullptr) {
                 LOGI("%s ->  %s  UTF-8编码 -> %s ", argsInfo, classInfo, ret);
                 env->ReleaseStringUTFChars(argJstr, ret);
