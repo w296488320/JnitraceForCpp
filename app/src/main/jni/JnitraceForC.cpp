@@ -56,14 +56,12 @@ namespace ZhenxiRunTime::JniTrace {
             match_so_name = soname;     \
 
 
-    std::mutex m_lock;
 
     static void write(const std::string &msg) {
         if(msg.c_str() == nullptr) {
             return;
         }
         if (isSave) {
-            std::lock_guard<std::mutex> lock(m_lock);
             if (jnitraceOs != nullptr) {
                 (*jnitraceOs) << msg;
             }
@@ -80,7 +78,6 @@ namespace ZhenxiRunTime::JniTrace {
             return;
         }
         if (isSave) {
-            std::lock_guard<std::mutex> lock(m_lock);
             if (jnitraceOs != nullptr) {
                 (*jnitraceOs) << msg;
             }
