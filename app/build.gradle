@@ -3,12 +3,12 @@ plugins {
 }
 
 android {
-    compileSdkVersion 29
-    buildToolsVersion "29.0.2"
+    compileSdkVersion 33
+    buildToolsVersion "33.0.0"
     defaultConfig {
         applicationId "com.example.jnitrace"
         minSdkVersion 22
-        targetSdkVersion 29
+        targetSdkVersion 33
         versionCode 1
         versionName "1.0"
 
@@ -44,8 +44,7 @@ android {
     lintOptions {
         abortOnError false
     }
-
-
+    ndkVersion = "18.1.5063045"
 }
 
 dependencies {
