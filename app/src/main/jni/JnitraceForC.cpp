@@ -1204,6 +1204,7 @@ void Jnitrace::startjnitrace(JNIEnv *env, const std::list<string> &filter_list, 
         if (jnitraceOs->is_open()) {
             jnitraceOs->close();
         }
+        delete jnitraceOs;
     }
     isSave = false;
 }
