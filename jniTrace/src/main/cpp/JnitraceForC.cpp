@@ -483,7 +483,7 @@ namespace ZhenxiRunTime::JniTrace {
                 //其他的则调用Arrays.toString 处理
                 jclass ArrayClazz = env->FindClass("java/util/Arrays");
                 jmethodID methodid = env->GetStaticMethodID(ArrayClazz, "toString",
-                                                            "([Z)Ljava/lang/String;");
+                                                            "([Ljava/lang/Object;)Ljava/lang/String;");
                 argJstr = (jstring) (env->CallStaticObjectMethod(ArrayClazz, methodid, arg));
             }
             //上面的逻辑主要是为了处理argJstr的赋值
@@ -632,7 +632,7 @@ namespace ZhenxiRunTime::JniTrace {
                 } else {
                     jclass ArrayClazz = env->FindClass("java/util/Arrays");
                     jmethodID methodid = env->GetStaticMethodID(ArrayClazz, "toString",
-                                                                "([Z)Ljava/lang/String;");
+                                                                "([Ljava/lang/Object;)Ljava/lang/String;");
                     argJstr = (jstring) (env->CallStaticObjectMethod(ArrayClazz, methodid,
                                                                      arg));
                 }

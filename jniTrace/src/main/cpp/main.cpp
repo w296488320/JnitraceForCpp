@@ -4,11 +4,11 @@
 #include <parse.h>
 
 
+
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_example_jnitrace_MainActivity_startJnitrace(JNIEnv *env, jobject thiz, jobject soname,
-                                                     jstring filepath) {
-
+Java_com_tool_jniTrace_JniTrace_startJnitrace(JNIEnv *env, jclass clazz, jobject soname,
+                                              jstring filepath) {
     const list<std::string> &clist = parse::jlist2clist(env, soname);
     string path;
     if (filepath != nullptr) {

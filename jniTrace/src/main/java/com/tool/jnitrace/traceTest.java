@@ -1,9 +1,9 @@
-package com.example.jnitrace;
+package com.tool.jniTrace;
 
 /**
  * @author Zhenxi on 2022/1/15
  */
-public class traceTest {
+public class TraceTest {
 
     public static String test() {
         return "test method is invoke ";
