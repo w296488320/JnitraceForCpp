@@ -17,7 +17,6 @@
 #include <asm/unistd.h>
 #include <unistd.h>
 #include <asm/fcntl.h>
-#include "limits.h"
 #include <string.h>
 #include <cerrno>
 #include <cstring>
@@ -41,17 +40,7 @@
 #include <unistd.h>
 #include <asm/fcntl.h>
 #include <fcntl.h>
-#include <string>
 #include <list>
-#include <sstream>
-#include <ostream>
-#include <iostream>
-#include <fstream>
-
-
-#include "logging.h"
-#include "SubstrateHook.h"
-
 
 
 using namespace std;
@@ -62,14 +51,18 @@ class Jnitrace {
          * start jni trace
          *
          * @param env  jniEnv
-         * @param soname using the list to save the entire collection, the jnitrace only handles the so name inside the list
+         * @param os using the list to save the entire collection, the jnitrace only handles the so name inside the list
          * @param isSave  Whether to save the file, save the file is the incoming path, otherwise pass null
          */
-        static void startjnitrace(JNIEnv * env, const std::list<string>& soname,char * isSave);
+        static void startjnitrace(JNIEnv *env, const std::list<string> &filter_list, std::ofstream * os);
+
         /**
          * stop jni trace
          */
         [[maybe_unused]] static void stopjnitrace();
+
+        private:
+                static void init(JNIEnv *env);
 };
 
 

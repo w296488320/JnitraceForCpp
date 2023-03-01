@@ -15,11 +15,7 @@ import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity {
 
-    /**
-     * @param soname 需要过滤的soname,支持多个so同时过滤
-     * @param savepath 保存的路径,当为null时候则通过日志进行打印
-     */
-    public native void startJnitrace(ArrayList<String> soname, String savepath);
+    public native void startJnitrace(ArrayList<String> soname);
 
     static {
         System.loadLibrary("jnitrace");
@@ -30,9 +26,11 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_main);
-        ArrayList<String> arrayList = new ArrayList<>();
-        arrayList.add("tracetest");
-        startJnitrace(arrayList,null);
+
+        //需要监听的SO关键字,监听多个SO添加即可
+        ArrayList<String> list = new ArrayList<>();
+        list.add("tracetest");
+        startJnitrace(list);
 
         System.loadLibrary("tracetest");
 

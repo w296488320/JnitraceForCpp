@@ -2,31 +2,36 @@
 
 #include "JnitraceForC.h"
 
-namespace ZhenxiRunTime::JniTrace {
-    static void
-    getArgsInfo(JNIEnv *env, jobject obj, jmethodID jmethodId, va_list args, bool isStatic);
+#include <iosfwd>
+#include <fstream>
 
-    static void getJObjectInfo(JNIEnv *env, jobject obj, const string &methodname);
 
-    static char *getJObjectToString(JNIEnv *env, jobject obj);
+#include "logging.h"
+#include "SubstrateHook.h"
 
-    static void
-    getJObjectInfoInternal(JNIEnv *env, jobject obj, string message, bool isPrintClassinfo,
-                           const char *classinfo);
 
-    static char *getJObjectClassInfo(JNIEnv *env, jobject obj);
+namespace ZhenxiRunTime {
+    namespace JniTrace {
+        static void
+        getArgsInfo(JNIEnv *env, jobject obj, jmethodID jmethodId, va_list args, bool isStatic);
 
-    static std::ofstream *jnitraceOs;
-    static std::list<string> filterSoList;
-    static bool isSave = false;
-    static string match_so_name = {};
+        static void getJObjectInfo(JNIEnv *env, jobject obj, const string &methodname);
+
+        static char *getJObjectToString(JNIEnv *env, jobject obj);
+
+        static void
+        getJObjectInfoInternal(JNIEnv *env, jobject obj, string message, bool isPrintClassinfo,
+                               const char *classinfo);
+
+        static char *getJObjectClassInfo(JNIEnv *env, jobject obj);
 
 
 #define HOOK_JNITRACE(env, func) \
-    MSHookFunction(    \
+     MSHookFunction(    \
       (void*)(env)->functions->func,\
       (void*)new_##func,\
       (void**)&orig_##func );    \
+
 
 
 //#define GET_TOSTRING_METHOD(type) env->GetStaticMethodID(ArrayClazz,"toString", "("##type##")Ljava/lang/String;");
@@ -56,17 +61,27 @@ namespace ZhenxiRunTime::JniTrace {
             match_so_name = soname;     \
 
 
+    static std::ofstream *jnitraceOs;
+    static std::list<string> filterSoList;
+    static bool isSave = false;
+    static string match_so_name = {};
+    static std::mutex supernode_ids_mux_;
+
 
     static void write(const std::string &msg) {
-        if(msg.c_str() == nullptr) {
+        //写入方法加锁,防止多进程导致问题
+        std::unique_lock<std::mutex> mock(supernode_ids_mux_);
+        if (msg.c_str() == nullptr) {
+            return;
+        }
+        if (msg.length() == 0) {
             return;
         }
         if (isSave) {
             if (jnitraceOs != nullptr) {
-                (*jnitraceOs) << msg;
+                (*jnitraceOs) << msg.c_str();
             }
         }
-
         LOG(INFO) << "[" << match_so_name << "] " << msg.c_str();
     }
 
@@ -74,15 +89,21 @@ namespace ZhenxiRunTime::JniTrace {
      * 第二个参数标识当前是否是分隔符
      */
     static inline void write(const std::string &msg, [[maybe_unused]] bool isApart) {
-        if(msg.c_str() == nullptr) {
+        std::unique_lock<std::mutex> mock(supernode_ids_mux_);
+        if (msg.c_str() == nullptr) {
             return;
         }
         if (isSave) {
             if (jnitraceOs != nullptr) {
-                (*jnitraceOs) << msg;
+                (*jnitraceOs) << msg.c_str();
             }
         }
-        LOG(INFO) << "[" << match_so_name << "] " << msg.c_str();
+        if(isApart) {
+            LOG(INFO) << msg.c_str();
+        } else {
+            LOG(INFO) << "[" << match_so_name << "] " << msg.c_str();
+        }
+
     }
 
     //jobject CallObjectMethod(JNIEnv*, jobject, jmethodID, va_list args);
@@ -120,14 +141,11 @@ namespace ZhenxiRunTime::JniTrace {
                 GET_JOBJECT_INFO(env, obj, "CallBooleanMethodV")
                 GET_METHOD_INFO_ARGS(env, obj, jmethodId, args, false)
                 jboolean ret = orig_CallBooleanMethodV(env, obj, jmethodId, args);
-                //LOG(INFO) << "invoke method result Boolean : " << (ret == JNI_TRUE?"true":"false");
-                //os << "invoke method result Boolean :  " << (ret == JNI_TRUE?"true":"false") << "\n";
                 write(string("invoke method result Boolean : ").append(
                         (ret == JNI_TRUE ? "true" : "false")).append("\n"));
                 return ret;
             }
         }
-
         return orig_CallBooleanMethodV(env, obj, jmethodId, args);
     }
 
@@ -139,8 +157,6 @@ namespace ZhenxiRunTime::JniTrace {
                 GET_JOBJECT_INFO(env, obj, "CallByteMethodV")
                 GET_METHOD_INFO_ARGS(env, obj, jmethodId, args, false)
                 jbyte ret = orig_CallByteMethodV(env, obj, jmethodId, args);
-                //LOG(INFO) << "result Byte: " << ret;
-                //os << "result Byte :  " << ret << "\n";
                 write(string("result Byte : ").append(to_string(ret)).append("\n"));
                 return ret;
             }
@@ -157,8 +173,6 @@ namespace ZhenxiRunTime::JniTrace {
                 GET_JOBJECT_INFO(env, obj, "CallCharMethodV")
                 GET_METHOD_INFO_ARGS(env, obj, jmethodId, args, false)
                 jchar ret = orig_CallCharMethodV(env, obj, jmethodId, args);
-                //LOG(INFO) << "result Char : " << ret;
-                //os << "result Char :  " << ret << "\n";;
                 write(string("result Char : ").append(to_string(ret)).append("\n"));
                 return ret;
             }
@@ -174,8 +188,6 @@ namespace ZhenxiRunTime::JniTrace {
                 GET_JOBJECT_INFO(env, obj, "CallShortMethodV")
                 GET_METHOD_INFO_ARGS(env, obj, jmethodId, args, false)
                 jshort ret = orig_CallShortMethodV(env, obj, jmethodId, args);
-                //LOG(INFO) << "result Short: " << ret;
-                //os << "result Short :  " << ret << "\n";;
                 write(string("result Short : ").append(to_string(ret)).append("\n"));
                 return ret;
             }
@@ -191,8 +203,6 @@ namespace ZhenxiRunTime::JniTrace {
                 GET_JOBJECT_INFO(env, obj, "CallIntMethodV")
                 GET_METHOD_INFO_ARGS(env, obj, jmethodId, args, false)
                 jint ret = orig_CallIntMethodV(env, obj, jmethodId, args);
-                //LOG(INFO) << "result Int: " << ret;
-                //os << "result Int :  " << ret << "\n";;
                 write(string("result Int : ").append(to_string(ret)).append("\n"));
                 return ret;
             }
@@ -209,8 +219,6 @@ namespace ZhenxiRunTime::JniTrace {
                 GET_JOBJECT_INFO(env, obj, "CallLongMethodV")
                 GET_METHOD_INFO_ARGS(env, obj, jmethodId, args, false)
                 jlong ret = orig_CallLongMethodV(env, obj, jmethodId, args);
-                //LOG(INFO) << "result Long: " << ret;
-                //os << "result Long :  " << ret << "\n";;
                 write(string("result Long : ").append(to_string(ret)).append("\n"));
                 return ret;
             }
@@ -226,8 +234,6 @@ namespace ZhenxiRunTime::JniTrace {
                 GET_JOBJECT_INFO(env, obj, "CallFloatMethodV")
                 GET_METHOD_INFO_ARGS(env, obj, jmethodId, args, false)
                 jfloat ret = orig_CallFloatMethodV(env, obj, jmethodId, args);
-                //LOG(INFO) << "result Float: " << ret;
-                //os << "result Float :  " << ret << "\n";;
                 write(string("result Float : ").append(to_string(ret)).append("\n"));
                 return ret;
             }
@@ -243,8 +249,6 @@ namespace ZhenxiRunTime::JniTrace {
                 GET_JOBJECT_INFO(env, obj, "CallDoubleMethodV")
                 GET_METHOD_INFO_ARGS(env, obj, jmethodId, args, false)
                 jdouble ret = orig_CallDoubleMethodV(env, obj, jmethodId, args);
-                //LOG(INFO) << "result Double: " << ret;
-                //os << "result Double :  " << ret << "\n";;
                 write(string("result Double : ").append(to_string(ret)).append("\n"));
                 return ret;
             }
@@ -291,8 +295,6 @@ namespace ZhenxiRunTime::JniTrace {
                 GET_JOBJECT_INFO(env, obj, "CallStaticBooleanMethodV")
                 GET_METHOD_INFO_ARGS(env, obj, jmethodId, args, true)
                 jboolean ret = orig_CallStaticBooleanMethodV(env, obj, jmethodId, args);
-                //LOG(INFO) << "invoke method result Boolean : " << (ret == JNI_TRUE?"true":"false");
-                //os << "invoke method result Boolean :  " <<(ret == JNI_TRUE?"true":"false") << "\n";;
                 write(string("result Boolean : ").append(
                         (ret == JNI_TRUE ? "true" : "false")).append(
                         "\n"));
@@ -311,8 +313,6 @@ namespace ZhenxiRunTime::JniTrace {
                 GET_JOBJECT_INFO(env, obj, "CallStaticByteMethodV")
                 GET_METHOD_INFO_ARGS(env, obj, jmethodId, args, true)
                 jbyte ret = orig_CallStaticByteMethodV(env, obj, jmethodId, args);
-                //LOG(INFO) << "result Byte : " << ret;
-                //            os << "result Byte :  " << ret << "\n";;
                 write(string("result Byte : ").append(to_string(ret)).append("\n"));
                 return ret;
             }
@@ -329,8 +329,6 @@ namespace ZhenxiRunTime::JniTrace {
                 GET_JOBJECT_INFO(env, obj, "CallStaticCharMethodV")
                 GET_METHOD_INFO_ARGS(env, obj, jmethodId, args, true)
                 jchar ret = orig_CallStaticCharMethodV(env, obj, jmethodId, args);
-                //LOG(INFO) << "result Char : " << ret;
-                //            os << "result Char :  " << ret << "\n";;
                 write(string("result Char : ").append(to_string(ret)).append("\n"));
                 return ret;
             }
@@ -346,10 +344,7 @@ namespace ZhenxiRunTime::JniTrace {
                 GET_JOBJECT_INFO(env, obj, "CallStaticShortMethodV")
                 GET_METHOD_INFO_ARGS(env, obj, jmethodId, args, true)
                 jshort ret = orig_CallStaticShortMethodV(env, obj, jmethodId, args);
-                //LOG(INFO) << "result Short : " << ret;
-                //os << "result Short :  " << ret << "\n";;
                 write(string("result Short : ").append(to_string(ret)).append("\n"));
-
                 return ret;
             }
         }
@@ -364,8 +359,6 @@ namespace ZhenxiRunTime::JniTrace {
                 GET_JOBJECT_INFO(env, obj, "CallStaticIntMethodV")
                 GET_METHOD_INFO_ARGS(env, obj, jmethodId, args, true)
                 jint ret = orig_CallStaticIntMethodV(env, obj, jmethodId, args);
-                //LOG(INFO) << "result Int : " << ret;
-                //os << "result Int :  " << ret << "\n";;
                 write(string("result Int : ").append(to_string(ret)).append("\n"));
                 return ret;
             }
@@ -382,8 +375,6 @@ namespace ZhenxiRunTime::JniTrace {
                 GET_JOBJECT_INFO(env, obj, "CallStaticLongMethodV")
                 GET_METHOD_INFO_ARGS(env, obj, jmethodId, args, true)
                 jlong ret = orig_CallStaticLongMethodV(env, obj, jmethodId, args);
-                //LOG(INFO) << "result Long : " << ret;
-                //os << "result Long :  " << ret << "\n";;
                 write(string("result Long : ").append(to_string(ret)).append("\n"));
                 return ret;
             }
@@ -399,8 +390,6 @@ namespace ZhenxiRunTime::JniTrace {
                 GET_JOBJECT_INFO(env, obj, "CallStaticFloatMethodV")
                 GET_METHOD_INFO_ARGS(env, obj, jmethodId, args, true)
                 jfloat ret = orig_CallStaticFloatMethodV(env, obj, jmethodId, args);
-                //LOG(INFO) << "result Float : " << ret;
-                //os << "result Float :  " << ret << "\n";;
                 write(string("result Float : ").append(to_string(ret)).append("\n"));
                 return ret;
             }
@@ -417,8 +406,6 @@ namespace ZhenxiRunTime::JniTrace {
                 GET_JOBJECT_INFO(env, obj, "CallStaticDoubleMethodV")
                 GET_METHOD_INFO_ARGS(env, obj, jmethodId, args, true)
                 jdouble ret = orig_CallStaticDoubleMethodV(env, obj, jmethodId, args);
-                //LOG(INFO) << "result Double : " << ret;
-                //os << "result Double :  " << ret << "\n";;
                 write(string("result Double : ").append(to_string(ret)).append("\n"));
                 return ret;
             }
@@ -431,10 +418,8 @@ namespace ZhenxiRunTime::JniTrace {
         if (obj == nullptr) {
             return;
         }
-        const string temptag =
-                "<<<<<------------------" + methodname + " start--------------------->>>>>";
-        //LOGE("%s", temptag.c_str())
-        write(string("\n ").append(temptag).append("\n"), true);
+        const string temptag = "<<<<<------------------" + methodname + " start--------------------->>>>>";
+        write(temptag, true);
         getJObjectInfoInternal(env, obj, "invoke this object", true, nullptr);
     }
 
@@ -464,8 +449,8 @@ namespace ZhenxiRunTime::JniTrace {
         if (classInfo == nullptr) {
             return;
         }
-        const char *ret;
-        //数组类型需要特殊处理
+        const char *ret = nullptr;
+        //数组类型需要特殊处理,非数组直接打印
         if (strstr(classInfo, "[")) {
             auto arg = (jobjectArray) obj;
             //数组类型参数
@@ -479,16 +464,23 @@ namespace ZhenxiRunTime::JniTrace {
                 argJstr = (jstring) (env->NewObject(strclazz, strInit, arg, utf));
                 env->DeleteLocalRef(utf);
                 env->DeleteLocalRef(strclazz);
-            } else {
+            }
+            else {
                 //其他的则调用Arrays.toString 处理
                 jclass ArrayClazz = env->FindClass("java/util/Arrays");
-                jmethodID methodid = env->GetStaticMethodID(ArrayClazz, "toString",
-                                                            "([Z)Ljava/lang/String;");
+                //这个需要用object类型
+                jmethodID methodid =
+                        env->GetStaticMethodID(ArrayClazz,
+                                               "toString",
+                                               "([Ljava/lang/Object;)Ljava/lang/String;");
                 argJstr = (jstring) (env->CallStaticObjectMethod(ArrayClazz, methodid, arg));
             }
-            //上面的逻辑主要是为了处理argJstr的赋值
-            ret = env->GetStringUTFChars(argJstr, nullptr);
-        } else {
+            if(argJstr!= nullptr) {
+                //上面的逻辑主要是为了处理argJstr的赋值
+                ret = env->GetStringUTFChars(argJstr, nullptr);
+            }
+        }
+        else {
             ret = getJObjectToString(env, obj);
         }
         if (ret != nullptr) {
@@ -617,6 +609,9 @@ namespace ZhenxiRunTime::JniTrace {
                 continue;
             } else if (strstr(classInfo, "[")) {
                 jobjectArray arg = va_arg(args, jobjectArray);
+                if(arg == nullptr) {
+                    continue;
+                }
                 //数组类型参数
                 jstring argJstr;
                 //byte数组 特殊处理
@@ -631,12 +626,14 @@ namespace ZhenxiRunTime::JniTrace {
 
                 } else {
                     jclass ArrayClazz = env->FindClass("java/util/Arrays");
-                    jmethodID methodid = env->GetStaticMethodID(ArrayClazz, "toString",
-                                                                "([Z)Ljava/lang/String;");
+                    jmethodID methodid =
+                            env->GetStaticMethodID(ArrayClazz,"toString","([Ljava/lang/Object;)Ljava/lang/String;");
                     argJstr = (jstring) (env->CallStaticObjectMethod(ArrayClazz, methodid,
                                                                      arg));
                 }
-
+                if(argJstr == nullptr) {
+                    continue;
+                }
                 //上面的逻辑主要是为了处理argJstr的赋值
                 const char *ret = env->GetStringUTFChars(argJstr, nullptr);
                 if (ret != nullptr) {
@@ -694,7 +691,7 @@ namespace ZhenxiRunTime::JniTrace {
     JNITRACE_HOOK_DEF(jstring, NewStringUTF, JNIEnv *env, const char *bytes) {
         DL_INFO
         IS_MATCH
-                write(string("NewStringUTF : ").append(bytes== nullptr?"":bytes).append("\n"));
+                write(string("NewStringUTF : ").append(bytes == nullptr ? "" : bytes).append("\n"));
                 return orig_NewStringUTF(env, bytes);
             }
         }
@@ -706,11 +703,11 @@ namespace ZhenxiRunTime::JniTrace {
                       [[maybe_unused]] jboolean * isCopy) {
         DL_INFO
         IS_MATCH
-                if(argstring == nullptr) {
+                if (argstring == nullptr) {
                     return nullptr;
                 }
                 const char *chars = orig_GetStringUTFChars(env, argstring, isCopy);
-                write(string("GetStringUTFChars : ").append(chars== nullptr?"":chars).append("\n"));
+                write(string("GetStringUTFChars : ").append(chars == nullptr ? "" : chars).append("\n"));
                 return chars;
             }
         }
@@ -723,7 +720,7 @@ namespace ZhenxiRunTime::JniTrace {
         IS_MATCH
                 //LOG(INFO) << "find class : " << name;
                 //os << "find class : " << name << "\n";
-                write(string("find class : ").append(name== nullptr?"":name).append("\n"));
+                write(string("find class : ").append(name == nullptr ? "" : name).append("\n"));
                 return orig_FindClass(env, name);
             }
         }
@@ -739,11 +736,8 @@ namespace ZhenxiRunTime::JniTrace {
         IS_MATCH
                 //当method id 错误时候可能null
                 jobject obj = orig_NewObjectV(env, clazz, jmethodId, args);
-                //LOGE("<<<<<------------------NewObjectV start  --------------------->>>>>")
-                //os <<"\n" <<"<<<<<------------------NewObjectV start  --------------------->>>>>" << "\n";;
-                write(string(
-                        "\n <<<<<------------------NewObjectV start  --------------------->>>>>").append(
-                        "\n"), true);
+                write(string("<<<<<------------------NewObjectV start  --------------------->>>>>"), true);
+
                 //打印构造方法参数信息
                 GET_METHOD_INFO_ARGS(env, obj, jmethodId, args, false)
                 return obj;
@@ -794,9 +788,9 @@ namespace ZhenxiRunTime::JniTrace {
                 const char *toString = env->GetStringUTFChars(toString_ret, nullptr);
                 //LOG(INFO) << "get field info  :  " << toString << "  " << name << "  " << sig;
                 //os << "get field info  :  " << toString << "  " << name << "  " << sig << "\n";
-                write(string("get field info  : ").append(toString== nullptr?"":toString)
-                              .append(" name-> ").append(name== nullptr?"":name)
-                                    .append(" sign -> ").append(sig== nullptr?"":sig).append("\n"));
+                write(string("get field info  : ").append(toString == nullptr ? "" : toString)
+                              .append(" name-> ").append(name == nullptr ? "" : name)
+                              .append(" sign -> ").append(sig == nullptr ? "" : sig).append("\n"));
                 return orig_GetFieldID(env, clazz, name, sig);
             }
         }
@@ -815,7 +809,8 @@ namespace ZhenxiRunTime::JniTrace {
                 const char *toString = env->GetStringUTFChars(toString_ret, nullptr);
                 //LOG(INFO) << "get static field info  :  " << toString << "  " << name << "  " << sig;
                 //os << "get static field info  :  " << toString << "  " << name << "  " << sig << "\n";
-                write(string("get static field info  : ").append(toString == nullptr?"":toString)
+                write(string("get static field info  : ").append(
+                                toString == nullptr ? "" : toString)
                               .append(" ").append(name).append(" ").append(sig).append("\n"));
                 return orig_GetStaticFieldID(env, clazz, name, sig);
             }
@@ -1112,27 +1107,11 @@ namespace ZhenxiRunTime::JniTrace {
         }
         return orig_GetStaticDoubleField(env, clazz, jfieldId);
     }
-}
+} }
 
 using namespace ZhenxiRunTime::JniTrace;
 
-void Jnitrace::startjnitrace(JNIEnv *env, const std::list<string> &filter_list, char *path) {
-    filterSoList = filter_list;
-    if (path != nullptr) {
-        //init save file
-        isSave = true;
-        //打开文件时，但是文件之前的内容都会被清空。可能存在多进程问题导致文件被清空
-        //os.open(path,ios::trunc);
-        //以追加方式打开文件，所有写文件的数据都是追加在文件末尾。
-        jnitraceOs = new ofstream();
-        jnitraceOs->open(path, ios::app);
-        if (!jnitraceOs->is_open()) {
-            LOG(INFO) << "jniTrace open file error  " << path;
-            LOG(INFO) << "jniTrace open file error  " << path;
-            LOG(INFO) << "jniTrace open file error  " << path;
-            return;
-        }
-    }
+void Jnitrace::init(JNIEnv *env) {
 
     HOOK_JNITRACE(env, CallObjectMethodV)
     HOOK_JNITRACE(env, CallBooleanMethodV)
@@ -1192,7 +1171,16 @@ void Jnitrace::startjnitrace(JNIEnv *env, const std::list<string> &filter_list, 
     HOOK_JNITRACE(env, NewObjectV)
 
     LOG(INFO) << ">>>>>>>>> Jnitrace hook sucess! ";
+}
 
+
+void Jnitrace::startjnitrace(JNIEnv *env, const std::list<string> &filter_list, std::ofstream *os) {
+    filterSoList = filter_list;
+    if (os != nullptr) {
+        isSave = true;
+        jnitraceOs = os;
+    }
+    init(env);
 }
 
 [[maybe_unused]] void Jnitrace::stopjnitrace() {

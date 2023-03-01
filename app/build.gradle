@@ -3,23 +3,21 @@ plugins {
 }
 
 android {
-    compileSdkVersion 33
-    buildToolsVersion '30.0.0'
+    compileSdkVersion 29
+    buildToolsVersion "29.0.2"
     defaultConfig {
         applicationId "com.example.jnitrace"
         minSdkVersion 22
-        targetSdkVersion 33
+        targetSdkVersion 29
         versionCode 1
         versionName "1.0"
 
         ndk {
             abiFilters 'armeabi-v7a', 'arm64-v8a'
-//            abiFilters 'armeabi-v7a'
         }
         externalNativeBuild {
             cmake {
-                cppFlags "-frtti -fexceptions -std=c++11"
-//                cppFlags "-frtti -fexceptions"
+
             }
         }
 
@@ -44,7 +42,9 @@ android {
     lintOptions {
         abortOnError false
     }
-    ndkVersion = "18.1.5063045"
+
+    ndkVersion '22.1.7171670'
+
 }
 
 dependencies {

@@ -1,20 +1,22 @@
 #include <jni.h>
 #include <logging.h>
-#include <JnitraceForC.h>
 #include <parse.h>
+
+#include "JnitraceForC.h"
 
 
 extern "C"
 JNIEXPORT void JNICALL
-Java_com_example_jnitrace_MainActivity_startJnitrace(JNIEnv *env, jobject thiz, jobject soname,
-                                                     jstring filepath) {
+Java_com_example_jnitrace_MainActivity_startJnitrace(JNIEnv *env, jobject thiz, jobject jmap) {
+    const auto &clist = parse::jlist2clist(env, jmap);
+    //如果需要将log保存,filepath写对应路径即可,不需要保存则传nullptr
+    //auto path = parse::jstring2str(env, filepath);
+    //auto *saveOs = new ofstream();
+    //saveOs->open(path, ios::app);
+    //if (!saveOs->is_open()) {
+    //    return;
+    //}
+    //Jnitrace::startjnitrace(env,clist, saveOs);
+    Jnitrace::startjnitrace(env,clist, nullptr);
 
-    const list<std::string> &clist = parse::jlist2clist(env, soname);
-    string path;
-    if (filepath != nullptr) {
-        path = parse::jstring2str(env, filepath);
-        Jnitrace::startjnitrace(env, clist,const_cast<char *>(path.c_str()));
-    } else {
-        Jnitrace::startjnitrace(env, clist, nullptr);
-    }
 }
