@@ -17,6 +17,9 @@ Java_com_example_jnitrace_MainActivity_startJnitrace(JNIEnv *env, jobject thiz, 
     //    return;
     //}
     //Jnitrace::startjnitrace(env,clist, saveOs);
-    Jnitrace::startjnitrace(env,clist, nullptr);
+
+    const std::list<string> forbid_list{CORE_SO_NAME};
+
+    Jnitrace::startjnitrace(env, false,forbid_list,clist, nullptr);
 
 }

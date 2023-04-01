@@ -3,47 +3,11 @@
 #ifndef QCONTAINER_PRO_APPUTILS_H
 #define QCONTAINER_PRO_APPUTILS_H
 
-#include <sys/syscall.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
-#include <jni.h>
-#include <dlfcn.h>
-#include <android/log.h>
-#include <malloc.h>
-#include <regex>
-#include <bits/getopt.h>
-#include <asm/unistd.h>
-#include <unistd.h>
-#include <asm/fcntl.h>
-#include <string.h>
-#include <cerrno>
-#include <cstring>
-#include <climits>
-#include "syscall.h"
-#include <cstring>
-#include <cstdio>
-#include <unistd.h>
-#include <stdlib.h>
-#include <syscall.h>
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <jni.h>
-#include <dlfcn.h>
-#include <android/log.h>
-#include <malloc.h>
-#include <regex>
-#include <bits/getopt.h>
-#include <asm/unistd.h>
-#include <unistd.h>
-#include <asm/fcntl.h>
-#include <fcntl.h>
-#include <list>
 
+#include "uitils/parse.h"
 
-using namespace std;
+typedef size_t Addr;
+
 
 class Jnitrace {
     public:
@@ -51,10 +15,18 @@ class Jnitrace {
          * start jni trace
          *
          * @param env  jniEnv
-         * @param os using the list to save the entire collection, the jnitrace only handles the so name inside the list
-         * @param isSave  Whether to save the file, save the file is the incoming path, otherwise pass null
+         * @param hookAll  lister all so jni
+         * @param forbid_list  not lister so list
+         * @param filter_list  lister so list
+         * @param os using the list to save the entire collection,
+         *           the jnitrace only handles the so name inside the list 。
+         *           No file save occurs if os == nullptr
          */
-        static void startjnitrace(JNIEnv *env, const std::list<string> &filter_list, std::ofstream * os);
+        static void startjnitrace(JNIEnv *env,
+                                  bool hookAll,
+                                  const std::list<string> &forbid_list,
+                                  const std::list<string> &filter_list,
+                                  std::ofstream * os);
 
         /**
          * stop jni trace
