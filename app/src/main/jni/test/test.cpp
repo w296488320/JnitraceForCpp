@@ -18,8 +18,11 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *_vm, void *) {
     jmethodID md1 = env->GetStaticMethodID(tracetest, "test4", "(Ljava/lang/String;)I");
     
     env->CallStaticIntMethod(tracetest,md1,env->NewStringUTF("666"));
+    
+    LOG(INFO) << "test invoke finish  ";
 
-    LOG(INFO) << "test  invoke finsh  ";
+    size_t ret = strlen("123");
+    LOG(INFO) << ret;
 
     return JNI_VERSION_1_6;
 }

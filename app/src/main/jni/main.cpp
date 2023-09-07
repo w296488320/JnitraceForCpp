@@ -2,7 +2,8 @@
 #include <logging.h>
 #include <parse.h>
 
-#include "JnitraceForC.h"
+#include "includes/JnitraceForC.h"
+#include "includes/stringHandler.h"
 
 
 extern "C"
@@ -21,5 +22,6 @@ Java_com_example_jnitrace_MainActivity_startJnitrace(JNIEnv *env, jobject thiz, 
     const std::list<string> forbid_list{CORE_SO_NAME};
 
     Jnitrace::startjnitrace(env, false,forbid_list,clist, nullptr);
+    stringHandler::hookStrHandler(false,forbid_list,clist, nullptr);
 
 }

@@ -1,0 +1,15 @@
+{
+    global:
+        JNI_OnLoad;
+        xunwind_cfi_log;
+        xunwind_cfi_dump;
+        xunwind_cfi_get;
+        xunwind_fp_unwind;
+        xunwind_eh_unwind;
+        xunwind_frames_log;
+        xunwind_frames_dump;
+        xunwind_frames_get;
+
+    local:
+        *;
+};

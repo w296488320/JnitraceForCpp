@@ -3,12 +3,14 @@ plugins {
 }
 
 android {
-    compileSdkVersion 29
-    buildToolsVersion "29.0.2"
+    ndkVersion = "25.2.9519653"
+    namespace 'com.example.Jnitrace'
+    compileSdkVersion rootProject.ext.compileSdkVersion
+    buildToolsVersion rootProject.ext.buildToolsVersion
     defaultConfig {
         applicationId "com.example.jnitrace"
-        minSdkVersion 22
-        targetSdkVersion 29
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
         versionName "1.0"
 
@@ -17,7 +19,7 @@ android {
         }
         externalNativeBuild {
             cmake {
-
+                arguments "-DHomePath=" + project.rootProject.projectDir
             }
         }
 
@@ -30,8 +32,8 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
 
     externalNativeBuild {
@@ -43,7 +45,7 @@ android {
         abortOnError false
     }
 
-    ndkVersion '22.1.7171670'
+
 
 }
 
