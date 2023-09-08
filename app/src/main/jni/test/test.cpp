@@ -19,10 +19,10 @@ JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *_vm, void *) {
     
     env->CallStaticIntMethod(tracetest,md1,env->NewStringUTF("666"));
     
-    LOG(INFO) << "test invoke finish  ";
+    //LOG(INFO) << "test invoke finish  ";
 
-    size_t ret = strlen("123");
-    LOG(INFO) << ret;
+    auto ret = strlen("66666666666666666666666");
+    auto ret2 = strdup("456");
 
     return JNI_VERSION_1_6;
 }

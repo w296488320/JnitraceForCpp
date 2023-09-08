@@ -40,11 +40,12 @@
 #include <iostream>
 #include <fstream>
 
-#include "includes/stringHandler.h"
+#include "stringHandler.h"
 #include "mylibc.h"
 #include "logging.h"
 #include "common_macros.h"
 #include "HookUtils.h"
+#include "ZhenxiLog.h"
 
 using namespace std;
 /**
@@ -136,7 +137,7 @@ namespace ZhenxiRunTime::stringHandlerHook {
     }
 
 # define DL_INFO \
-    Dl_info info={0}; \
+    Dl_info info={nullptr}; \
     int addr_ret_0 = dladdr((void *) __builtin_return_address(0), &info); \
 
 # define IS_MATCH \
@@ -194,14 +195,6 @@ namespace ZhenxiRunTime::stringHandlerHook {
     }
 
     static void write(const char *msg, Dl_info info) {
-        if(my_strlen(msg)<20) {
-            return;
-        }
-        if(my_strstr(msg,"com.")!= nullptr
-                ||my_strstr(msg,"ttf")!= nullptr||my_strstr(msg,".so")!= nullptr
-                ||my_strstr(msg,"/system/lib64")!= nullptr) {
-            return;
-        }
         INIT_ORIG_BUFF
         if ((size_t) info.dli_fbase > 0) {
             GET_ADDRESS
@@ -253,11 +246,27 @@ namespace ZhenxiRunTime::stringHandlerHook {
         return orig_strstr(h, n);
     }
 
-    //size_t strlen(const char* __s)
+    //size_t __strlen_chk(const char *a1, size_t a2)
+    HOOK_DEF(size_t, __strlen_chk, const char *__s,size_t a2) {
+        DL_INFO
+        IS_MATCH
+        size_t size = orig___strlen_chk(__s,a2);
+            if (size > 0) {
+                INIT_ORIG_BUFF
+                APPEND(buff, "strlen_chk() arg1 -> ")
+                APPEND(buff, IS_NULL(__s))
+                APPEND(buff, "\n")
+                write(buff, info);
+            }
+            return size;
+        }
+        return orig___strlen_chk(__s,a2);
+    }
+
     HOOK_DEF(size_t, strlen, const char *__s) {
         DL_INFO
         IS_MATCH
-        size_t size = orig_strlen(__s);
+            size_t size = orig_strlen(__s);
             if (size > 0) {
                 INIT_ORIG_BUFF
                 APPEND(buff, "strlen() arg1 -> ")
@@ -265,7 +274,8 @@ namespace ZhenxiRunTime::stringHandlerHook {
                 APPEND(buff, "\n")
                 write(buff, info);
             }
-            return size; }
+            return size;
+        }
         return orig_strlen(__s);
     }
 
@@ -622,6 +632,8 @@ void stringHandler::init() {
     }
 
     HOOK_SYMBOL(handle, strlen)
+    //strlen buff check
+    HOOK_SYMBOL(handle, __strlen_chk)
     HOOK_SYMBOL(handle, strcmp)
     HOOK_SYMBOL(handle, strstr)
     HOOK_SYMBOL(handle, fgets)

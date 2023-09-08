@@ -15,7 +15,7 @@ import java.util.ArrayList;
 
 public class MainActivity extends AppCompatActivity {
 
-    public native void startJnitrace(ArrayList<String> soname);
+    public native void startJnitrace(ArrayList<String> soname,String save_path);
 
     static {
         System.loadLibrary("jnitrace");
@@ -30,7 +30,7 @@ public class MainActivity extends AppCompatActivity {
         //需要监听的SO关键字,监听多个SO添加即可
         ArrayList<String> list = new ArrayList<>();
         list.add("tracetest");
-        startJnitrace(list);
+        startJnitrace(list,"/data/data/"+getPackageName()+"/111.txt");
 
         System.loadLibrary("tracetest");
 
